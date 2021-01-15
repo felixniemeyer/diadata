@@ -9,37 +9,38 @@ import (
 )
 
 const (
+	BlockSizeSeconds  = 120
 	BalancerExchange  = "Balancer"
-	GnosisExchange    = "Gnosis"
-	KrakenExchange    = "Kraken"
-	BitfinexExchange  = "Bitfinex"
+	BancorExchange    = "Bancor"
 	BinanceExchange   = "Binance"
 	BitBayExchange    = "BitBay"
+	BitfinexExchange  = "Bitfinex"
+	BitMaxExchange    = "Bitmax"
 	BittrexExchange   = "Bittrex"
 	CoinBaseExchange  = "CoinBase"
-	HitBTCExchange    = "HitBTC"
-	SimexExchange     = "Simex"
-	OKExExchange      = "OKEx"
-	HuobiExchange     = "Huobi"
-	LBankExchange     = "LBank"
-	GateIOExchange    = "GateIO"
-	ZBExchange        = "ZB"
-	QuoineExchange    = "Quoine"
-	UnknownExchange   = "Unknown"
-	BlockSizeSeconds  = 120
-	FilterKing        = "MA120"
-	BancorExchange    = "Bancor"
-	UniswapExchange   = "Uniswap"
-	LoopringExchange  = "Loopring"
+	CREX24Exchange    = "CREX24"
 	CurveFIExchange   = "Curvefi"
-	MakerExchange     = "Maker"
-	KuCoinExchange    = "KuCoin"
-	SushiSwapExchange = "SushiSwap"
-	PanCakeSwap       = "PanCakeSwap"
 	DforceExchange    = "Dforce"
-	ZeroxExchange     = "0x"
+	FilterKing        = "MA120"
+	GateIOExchange    = "GateIO"
+	GnosisExchange    = "Gnosis"
+	HitBTCExchange    = "HitBTC"
+	HuobiExchange     = "Huobi"
+	KrakenExchange    = "Kraken"
+	KuCoinExchange    = "KuCoin"
 	KyberExchange     = "Kyber"
-	BitMaxExchange    = "Bitmax"
+	LBankExchange     = "LBank"
+	LoopringExchange  = "Loopring"
+	MakerExchange     = "Maker"
+	OKExExchange      = "OKEx"
+	PanCakeSwap       = "PanCakeSwap"
+	QuoineExchange    = "Quoine"
+	SimexExchange     = "Simex"
+	SushiSwapExchange = "SushiSwap"
+	UniswapExchange   = "Uniswap"
+	UnknownExchange   = "Unknown"
+	ZBExchange        = "ZB"
+	ZeroxExchange     = "0x"
 )
 
 const (
@@ -49,34 +50,39 @@ const (
 
 func Exchanges() []string {
 	return []string{
-		KuCoinExchange,
-		UniswapExchange,
-		BalancerExchange,
-		MakerExchange,
-		GnosisExchange,
-		CurveFIExchange,
-		BinanceExchange,
-		BitfinexExchange,
-		BittrexExchange,
-		CoinBaseExchange,
-		GateIOExchange,
-		HitBTCExchange,
-		HuobiExchange,
+		/*
+			KuCoinExchange,
+			UniswapExchange,
+			BalancerExchange,
+			MakerExchange,
+			GnosisExchange,
+			CurveFIExchange,
+			BinanceExchange,
+			BitfinexExchange,
+			BittrexExchange,
+			CoinBaseExchange,
+			GateIOExchange,
+			HitBTCExchange,
+			HuobiExchange,
+		*/
 		KrakenExchange,
-		LBankExchange,
-		OKExExchange,
-		QuoineExchange,
-		SimexExchange,
-		ZBExchange,
-		BancorExchange,
-		UnknownExchange,
-		LoopringExchange,
-		SushiSwapExchange,
-		DforceExchange,
-		ZeroxExchange,
-		KyberExchange,
-		BitMaxExchange,
-		PanCakeSwap,
+		CREX24Exchange,
+		/*
+			LBankExchange,
+			OKExExchange,
+			QuoineExchange,
+			SimexExchange,
+			ZBExchange,
+			BancorExchange,
+			UnknownExchange,
+			LoopringExchange,
+			SushiSwapExchange,
+			DforceExchange,
+			ZeroxExchange,
+			KyberExchange,
+			BitMaxExchange,
+			PanCakeSwap,
+		*/
 	}
 }
 

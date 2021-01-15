@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -34,23 +35,21 @@ type CREX24ApiTradeUpdate struct {
 }
 
 type CREX24Scraper struct {
-	shutdown     chan nothing
-	shutdownDone chan nothing
 	error        error
 	client       *signalr.Client
 	exchangeName string
 	chanTrades   chan *dia.Trade
 	msgId        int
 	pairScrapers map[string]*CREX24PairScraper
+	closed       bool
 }
 
 func NewCREX24Scraper(exchange dia.Exchange) *CREX24Scraper {
 	s := &CREX24Scraper{
-		shutdown:     make(chan nothing),
-		shutdownDone: make(chan nothing),
 		pairScrapers: make(map[string]*CREX24PairScraper),
 		exchangeName: exchange.Name,
 		chanTrades:   make(chan *dia.Trade),
+		closed:       false,
 		error:        nil,
 		msgId:        1,
 	}
@@ -63,9 +62,12 @@ func (s *CREX24Scraper) Channel() chan *dia.Trade {
 }
 
 func (s *CREX24Scraper) Close() error {
-	s.client.Close()
-	close(s.chanTrades)
-	return s.error
+	if s.closed {
+		return errors.New("CREX24Scraper: Already closed")
+	}
+	s.cleanup(nil)
+	time.Sleep(3 * time.Second)
+	return nil // s.error
 }
 
 func (s *CREX24Scraper) NormalizePair(pair dia.Pair) (dia.Pair, error) {
@@ -130,15 +132,13 @@ func (s *CREX24Scraper) sendTradesToChannel(update *CREX24ApiTradeUpdate) {
 	}
 }
 
-func (s *CREX24Scraper) setup() {
-}
-
 func (s *CREX24Scraper) cleanup(err error) {
+	log.Println("s.client.Close() in the next line")
+
 	s.client.Close()
 	if err != nil {
 		s.error = err
 	}
-	//close websocket connections
 }
 
 func (s *CREX24Scraper) FetchAvailablePairs() (pairs []dia.Pair, err error) {
@@ -153,8 +153,6 @@ func (s *CREX24Scraper) FetchAvailablePairs() (pairs []dia.Pair, err error) {
 	if err != nil {
 		return nil, err
 	}
-
-	log.Println(parsedPairs) // TODO: remove
 
 	var results = make([]dia.Pair, len(parsedPairs))
 	for i := 0; i < len(parsedPairs); i++ {
@@ -171,7 +169,6 @@ func (s *CREX24Scraper) FetchAvailablePairs() (pairs []dia.Pair, err error) {
 
 func (s *CREX24Scraper) ScrapePair(pair dia.Pair) (PairScraper, error) {
 	log.Println(pair)
-	// time.Sleep(2000 * time.Millisecond)
 	msg := hubs.ClientMsg{
 		H: "publicCryptoHub",
 		M: "joinTradeHistory",
@@ -206,13 +203,13 @@ type CREX24PairScraper struct {
 }
 
 func (ps *CREX24PairScraper) Close() error {
-	// TODO prevent seg fault analog to in CREX24Scraper.ScrapPair
-	err := ps.parent.client.Send(hubs.ClientMsg{
+	msg := hubs.ClientMsg{
 		H: "publicCryptoHub",
 		M: "leaveTradeHistory",
 		A: []interface{}{ps.pair.ForeignName},
 		I: ps.parent.msgId,
-	})
+	}
+	err := ps.parent.client.Send(msg)
 	ps.parent.msgId += 1
 	if err != nil {
 		return err

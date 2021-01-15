@@ -10,7 +10,6 @@ import (
 
 	scrapers "github.com/diadata-org/diadata/internal/pkg/exchange-scrapers"
 	"github.com/diadata-org/diadata/pkg/dia"
-	"github.com/diadata-org/diadata/pkg/dia/helpers/configCollectors"
 	models "github.com/diadata-org/diadata/pkg/model"
 	"github.com/sirupsen/logrus"
 	"github.com/tkanos/gonfig"
@@ -26,8 +25,8 @@ type Pairs struct {
 }
 
 func getPairsFromConfig(exchange string) ([]dia.Pair, error) {
-	configFileAPI := configCollectors.ConfigFileConnectors(exchange)
-	// configFileAPI := "config/" + exchange + ".json"
+	// configFileAPI := configCollectors.ConfigFileConnectors(exchange)
+	configFileAPI := "config/" + exchange + ".json"
 	var coins Pairs
 	err := gonfig.GetConf(configFileAPI, &coins)
 	return coins.Coins, err
@@ -65,7 +64,7 @@ func savePairsToFile(exchange string, pairs []dia.Pair) {
 	if err != nil {
 		log.Error("error while saving pairs to file", err)
 	}
-	err = ioutil.WriteFile("/tmp/" + exchange + ".json", b, 0644)
+	err = ioutil.WriteFile("/tmp/"+exchange+".json", b, 0644)
 }
 
 func updateExchangePairs() {
@@ -173,7 +172,7 @@ func main() {
 		ticker: time.NewTicker(time.Second * 60 * 60),
 	}
 	var err error
-  db , err = models.NewDataStore()
+	db, err = models.NewDataStore()
 	if err != nil {
 		panic("Can not initialize db, error: " + err.Error())
 	}
