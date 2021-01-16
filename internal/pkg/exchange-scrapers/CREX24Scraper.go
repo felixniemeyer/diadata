@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/carterjones/signalr"
@@ -34,14 +35,22 @@ type CREX24ApiTradeUpdate struct {
 	NT []CREX24ApiTrade
 }
 
+// CREX24 Scraper is a scraper for collecting trades from the CREX24 signalR api
 type CREX24Scraper struct {
-	error        error
-	client       *signalr.Client
+	client *signalr.Client
+	msgId  int
+	// signaling channels for session initialization and finishing
+	initDone     chan nothing
+	shutdown     chan nothing
+	shutdownDone chan nothing
+	// error handling
+	errorLock sync.RWMutex
+	error     error
+	closed    bool
+	// pair scrapers
+	pairScrapers map[string]*CREX24PairScraper
 	exchangeName string
 	chanTrades   chan *dia.Trade
-	msgId        int
-	pairScrapers map[string]*CREX24PairScraper
-	closed       bool
 }
 
 func NewCREX24Scraper(exchange dia.Exchange) *CREX24Scraper {
@@ -95,19 +104,24 @@ func (s *CREX24Scraper) connect() {
 func (s *CREX24Scraper) handleMessage(msg signalr.Message) {
 	for _, data := range msg.M {
 		if data.M == "UpdateSource" {
-			for i, argument := range data.A {
-				if i == 1 { // payload argument
-					payload, ok := argument.(string)
-					if ok {
-						var parsedUpdate CREX24ApiTradeUpdate
-						log.Println(payload)
-						json.NewDecoder(strings.NewReader(payload)).Decode(&parsedUpdate)
-						s.sendTradesToChannel(&parsedUpdate)
-					}
-				}
+			var parsedUpdate CREX24ApiTradeUpdate
+			parseUpdateSourceMessage(data.A, &parsedUpdate)
+			s.sendTradesToChannel(&parsedUpdate)
+		}
+	}
+}
+
+func parseUpdateSourceMessage(arguments []interface{}, parsedUpdate *CREX24ApiTradeUpdate) error {
+	for i, argument := range arguments {
+		if i == 1 { // payload argument
+			payload, ok := argument.(string)
+			if ok {
+				json.NewDecoder(strings.NewReader(payload)).Decode(&parsedUpdate)
+				return nil
 			}
 		}
 	}
+	return errors.New("CREX24Scraper: Could not parse UpdateSource Arguments")
 }
 
 func (s *CREX24Scraper) sendTradesToChannel(update *CREX24ApiTradeUpdate) {
@@ -116,7 +130,6 @@ func (s *CREX24Scraper) sendTradesToChannel(update *CREX24ApiTradeUpdate) {
 	for _, trade := range update.NT {
 		price, pok := strconv.ParseFloat(trade.P, 64)
 		volume, vok := strconv.ParseFloat(trade.V, 64)
-		log.Println("ok?", pok, vok)
 		if pok == nil && vok == nil {
 			t := &dia.Trade{
 				Pair:           pair.ForeignName,
@@ -128,13 +141,12 @@ func (s *CREX24Scraper) sendTradesToChannel(update *CREX24ApiTradeUpdate) {
 				Source:         dia.CREX24Exchange,
 			}
 			s.chanTrades <- t
+			log.Info("got trade: ", t)
 		}
 	}
 }
 
 func (s *CREX24Scraper) cleanup(err error) {
-	log.Println("s.client.Close() in the next line")
-
 	s.client.Close()
 	if err != nil {
 		s.error = err
@@ -168,7 +180,6 @@ func (s *CREX24Scraper) FetchAvailablePairs() (pairs []dia.Pair, err error) {
 }
 
 func (s *CREX24Scraper) ScrapePair(pair dia.Pair) (PairScraper, error) {
-	log.Println(pair)
 	msg := hubs.ClientMsg{
 		H: "publicCryptoHub",
 		M: "joinTradeHistory",
