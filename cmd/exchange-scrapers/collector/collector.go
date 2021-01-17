@@ -43,7 +43,6 @@ func handleTrades(c chan *dia.Trade, wg *sync.WaitGroup, w *kafka.Writer) {
 			}
 			lastTradeTime = time.Now()
 			kafkaHelper.WriteMessage(w, t)
-			log.Println("wrote trade:", t)
 		}
 	}
 }
