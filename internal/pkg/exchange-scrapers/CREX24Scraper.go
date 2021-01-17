@@ -24,10 +24,10 @@ type CREX24ApiInstrument struct {
 }
 
 type CREX24ApiTrade struct {
-	P string
-	V string
-	S string
-	T int64
+	Price     string `json:"P"`
+	Volume    string `json:"V"`
+	Side      string `json:"S"`
+	Timestamp int64  `json:"T"`
 }
 
 type CREX24ApiTradeUpdate struct {
@@ -128,15 +128,15 @@ func (s *CREX24Scraper) sendTradesToChannel(update *CREX24ApiTradeUpdate) {
 	ps := s.pairScrapers[update.I]
 	pair := ps.Pair()
 	for _, trade := range update.NT {
-		price, pok := strconv.ParseFloat(trade.P, 64)
-		volume, vok := strconv.ParseFloat(trade.V, 64)
+		price, pok := strconv.ParseFloat(trade.Price, 64)
+		volume, vok := strconv.ParseFloat(trade.Volume, 64)
 		if pok == nil && vok == nil {
 			t := &dia.Trade{
 				Pair:           pair.ForeignName,
 				Price:          price,
 				Symbol:         pair.Symbol,
 				Volume:         volume,
-				Time:           time.Unix(trade.T, 0),
+				Time:           time.Unix(trade.Timestamp, 0),
 				ForeignTradeID: "",
 				Source:         dia.CREX24Exchange,
 			}
@@ -180,6 +180,11 @@ func (s *CREX24Scraper) FetchAvailablePairs() (pairs []dia.Pair, err error) {
 }
 
 func (s *CREX24Scraper) ScrapePair(pair dia.Pair) (PairScraper, error) {
+	if !s.connected {
+		s.init()
+
+	}
+
 	msg := hubs.ClientMsg{
 		H: "publicCryptoHub",
 		M: "joinTradeHistory",
