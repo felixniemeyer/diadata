@@ -44,9 +44,11 @@ type CREX24Scraper struct {
 	shutdown     chan nothing
 	shutdownDone chan nothing
 	// error handling
-	errorLock sync.RWMutex
-	error     error
-	closed    bool
+	error  error
+	closed bool
+	// lazy connection
+	connectLock sync.Mutex
+	connected   bool
 	// pair scrapers
 	pairScrapers map[string]*CREX24PairScraper
 	exchangeName string
@@ -59,10 +61,11 @@ func NewCREX24Scraper(exchange dia.Exchange) *CREX24Scraper {
 		exchangeName: exchange.Name,
 		chanTrades:   make(chan *dia.Trade),
 		closed:       false,
+		connected:    false,
 		error:        nil,
 		msgId:        1,
 	}
-	s.connect()
+	s.mainLoop()
 	return s
 }
 
@@ -83,7 +86,18 @@ func (s *CREX24Scraper) NormalizePair(pair dia.Pair) (dia.Pair, error) {
 	return dia.Pair{}, nil
 }
 
-func (s *CREX24Scraper) connect() {
+func (s *CREX24Scraper) mainLoop() {
+	for {
+		select {
+		case <-s.shutdown:
+			log.Println("CREX24Scraper shutting down")
+			s.cleanup()
+			return
+		}
+	}
+}
+
+func (s *CREX24Scraper) connect() error {
 	s.client = signalr.New(
 		"api.crex24.com",
 		"1.5",
@@ -98,7 +112,15 @@ func (s *CREX24Scraper) connect() {
 		}
 	}
 	err := s.client.Run(msgHandler, panicIfErr)
-	panicIfErr(err) // TODO close channel make it errorrrrr instead of panic
+	if err != nil {
+		return errors.New("CREX24Scraper: Could not establish signalR connection")
+	}
+	s.connected = true
+	return nil
+}
+
+func (s *CREX24Scraper) disconnect() {
+	s.client.Close()
 }
 
 func (s *CREX24Scraper) handleMessage(msg signalr.Message) {
@@ -112,14 +134,10 @@ func (s *CREX24Scraper) handleMessage(msg signalr.Message) {
 }
 
 func parseUpdateSourceMessage(arguments []interface{}, parsedUpdate *CREX24ApiTradeUpdate) error {
-	for i, argument := range arguments {
-		if i == 1 { // payload argument
-			payload, ok := argument.(string)
-			if ok {
-				json.NewDecoder(strings.NewReader(payload)).Decode(&parsedUpdate)
-				return nil
-			}
-		}
+	payload, ok := arguments[1].(string)
+	if ok {
+		json.NewDecoder(strings.NewReader(payload)).Decode(&parsedUpdate)
+		return nil
 	}
 	return errors.New("CREX24Scraper: Could not parse UpdateSource Arguments")
 }
@@ -147,7 +165,12 @@ func (s *CREX24Scraper) sendTradesToChannel(update *CREX24ApiTradeUpdate) {
 }
 
 func (s *CREX24Scraper) cleanup(err error) {
-	s.client.Close()
+	s.connectLock.Lock()
+	defer s.connectLock.Unlock()
+	s.disconnect()
+
+	s.closed = true
+
 	if err != nil {
 		s.error = err
 	}
@@ -179,16 +202,20 @@ func (s *CREX24Scraper) FetchAvailablePairs() (pairs []dia.Pair, err error) {
 	return results, nil
 }
 
-func (s *CREX24Scraper) ScrapePair(pair dia.Pair) (PairScraper, error) {
-	if !s.connected {
-		s.init()
+func (s *CREX24Scraper) subscribe(foreignName string) {
+	s.connectLock.Lock()
+	defer s.connectLock.Unlock()
 
+	if !s.connected { // lazily connect
+		if err := s.connect(); err != nil {
+			return nil, err
+		}
 	}
 
 	msg := hubs.ClientMsg{
 		H: "publicCryptoHub",
 		M: "joinTradeHistory",
-		A: []interface{}{pair.ForeignName},
+		A: []interface{}{foreignName},
 		I: s.msgId,
 	}
 
@@ -198,6 +225,10 @@ func (s *CREX24Scraper) ScrapePair(pair dia.Pair) (PairScraper, error) {
 	if err != nil {
 		return nil, err
 	}
+}
+
+func (s *CREX24Scraper) ScrapePair(pair dia.Pair) (PairScraper, error) {
+	go s.subscribe(pair.ForeignName)
 
 	ps := &CREX24PairScraper{
 		parent: s,
